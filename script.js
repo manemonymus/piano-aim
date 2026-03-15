@@ -1,22 +1,71 @@
-// game state
+const canvas = document.getElementById('canvas')
+const ctx = canvas.getContext('2d')
+const scoreEl = document.getElementById('score')
+const timerEl = document.getElementById('timer')
+const messageEl = document.getElementById('message')
+const highscoreValueEl = document.getElementById('highscore-value')
+
+const GRID_SIZE = 4
+const TILE_SIZE = 120
+const BORDER = 2
+
+canvas.width = GRID_SIZE * TILE_SIZE
+canvas.height = GRID_SIZE * TILE_SIZE
+
 let blackIndices = new Set()
 let score = 0
-let gameOver = false
+let timeLeft = 30
+let gameActive = false
+let timerInterval = null
 
-// grab DOM elements
-const grid = document.getElementById('grid')
-const scoreEl = document.getElementById('score')
+let highScore = parseInt(localStorage.getItem('highscore')) || 0
+highscoreValueEl.textContent = highScore
 
-// build the 16 tiles
-for (let i = 0; i < 16; i++) {
-  const tile = document.createElement('div')
-  tile.classList.add('tile')
-  tile.dataset.index = i
-  tile.addEventListener('click', () => handleClick(i))
-  grid.appendChild(tile)
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+
+// pentatonic scale
+const notes = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00]
+
+function playPianoNote() {
+  const frequency = notes[Math.floor(Math.random() * notes.length)]
+  const oscillator = audioCtx.createOscillator()
+  const gainNode = audioCtx.createGain()
+  oscillator.connect(gainNode)
+  gainNode.connect(audioCtx.destination)
+  oscillator.type = 'triangle'
+  oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime)
+  gainNode.gain.setValueAtTime(0, audioCtx.currentTime)
+  gainNode.gain.linearRampToValueAtTime(0.8, audioCtx.currentTime + 0.01)
+  gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8)
+  oscillator.start(audioCtx.currentTime)
+  oscillator.stop(audioCtx.currentTime + 0.8)
 }
 
-// your shuffle function from before
+function playErrorSound() {
+  const oscillator = audioCtx.createOscillator()
+  const gainNode = audioCtx.createGain()
+  oscillator.connect(gainNode)
+  gainNode.connect(audioCtx.destination)
+  oscillator.type = 'sawtooth'
+  oscillator.frequency.setValueAtTime(100, audioCtx.currentTime)
+  gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime)
+  gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4)
+  oscillator.start(audioCtx.currentTime)
+  oscillator.stop(audioCtx.currentTime + 0.4)
+}
+
+function drawGrid() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+  for (let i = 0; i < GRID_SIZE * GRID_SIZE; i++) {
+    const col = i % GRID_SIZE
+    const row = Math.floor(i / GRID_SIZE)
+    const x = col * TILE_SIZE
+    const y = row * TILE_SIZE
+    ctx.fillStyle = blackIndices.has(i) ? 'black' : 'white'
+    ctx.fillRect(x + BORDER, y + BORDER, TILE_SIZE - BORDER * 2, TILE_SIZE - BORDER * 2)
+  }
+}
+
 function shuffle(array) {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -25,50 +74,79 @@ function shuffle(array) {
   return array
 }
 
-function getTile(index) {
-  return grid.children[index]
-}
-
 function initGame() {
-  // pick 3 random black tiles
-  const indices = shuffle([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15])
+  score = 0
+  timeLeft = 30
+  gameActive = true
+  scoreEl.textContent = '0'
+  timerEl.textContent = '30.0'
+  timerEl.style.color = '#f0a500'
+  messageEl.textContent = ''
+  const indices = shuffle([...Array(16).keys()])
   blackIndices = new Set(indices.slice(0, 3))
-  
-  // reset all tiles to white first
-  for (let i = 0; i < 16; i++) {
-    getTile(i).className = 'tile'
-  }
-
-  // set black tiles
-  blackIndices.forEach(i => getTile(i).classList.add('black'))
+  drawGrid()
+  clearInterval(timerInterval)
+  startTimer()
 }
 
-function handleClick(index) {
-  if (gameOver) return
+function startTimer() {
+  timerInterval = setInterval(() => {
+    timeLeft = Math.round((timeLeft - 0.1) * 10) / 10
+    timerEl.textContent = timeLeft.toFixed(1)
+    if (timeLeft <= 10) timerEl.style.color = '#ff4444'
+    if (timeLeft <= 0) {
+      timerEl.textContent = '0.0'
+      endGame()
+    }
+  }, 100)
+}
+
+function endGame() {
+  gameActive = false
+  clearInterval(timerInterval)
+  if (score > highScore) {
+    highScore = score
+    localStorage.setItem('highscore', highScore)
+    highscoreValueEl.textContent = highScore
+    messageEl.textContent = 'New best! Press any key to restart'
+  } else {
+    messageEl.textContent = 'Press any key to restart'
+  }
+}
+
+canvas.addEventListener('mousedown', (e) => {
+  if (!gameActive) return
+  const rect = canvas.getBoundingClientRect()
+  const x = e.clientX - rect.left
+  const y = e.clientY - rect.top
+  const col = Math.floor(x / TILE_SIZE)
+  const row = Math.floor(y / TILE_SIZE)
+  const index = row * GRID_SIZE + col
 
   if (blackIndices.has(index)) {
-    // correct click
-    getTile(index).classList.remove('black')
     blackIndices.delete(index)
-
-    // pick a new white tile to turn black
     const whiteTiles = []
     for (let i = 0; i < 16; i++) {
-      if (!blackIndices.has(i) && i!= index) whiteTiles.push(i)
+      if (!blackIndices.has(i) && i !== index) whiteTiles.push(i)
     }
     const newBlack = whiteTiles[Math.floor(Math.random() * whiteTiles.length)]
     blackIndices.add(newBlack)
-    getTile(newBlack).classList.add('black')
-
     score++
-    scoreEl.textContent = `Score: ${score}`
-
+    scoreEl.textContent = score
+    playPianoNote(score)
+    drawGrid()
   } else {
-    // wrong click — game over
-    gameOver = true
-    alert(`Game Over! Score: ${score}`)
+    const col = index % GRID_SIZE
+    const row = Math.floor(index / GRID_SIZE)
+    ctx.fillStyle = '#ff3333'
+    ctx.fillRect(col * TILE_SIZE + BORDER, row * TILE_SIZE + BORDER, TILE_SIZE - BORDER * 2, TILE_SIZE - BORDER * 2)
+    playErrorSound()
+    endGame()
   }
-}
+})
 
-// start the game
-initGame()
+document.addEventListener('keydown', () => {
+  initGame()
+})
+
+drawGrid()
