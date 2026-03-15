@@ -1,6 +1,6 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
-const supabase = createClient('https://issagyqenkachzhqdilr.supabase.co', 'sb_publishable_734iJucANV1NrJLwRzAz8w_vErwSAOY')
+const supabase = createClient('YOUR_SUPABASE_URL', 'YOUR_ANON_KEY')
 
 const canvas = document.getElementById('canvas')
 const ctx = canvas.getContext('2d')
@@ -13,6 +13,11 @@ const nameInput = document.getElementById('name-input')
 const leaderboardList = document.getElementById('leaderboard-list')
 const restartBtn = document.getElementById('restart-btn')
 const submitBtn = document.getElementById('submit-btn')
+const startBtn = document.getElementById('start-btn')
+const statsBtn = document.getElementById('stats-btn')
+const statsModal = document.getElementById('stats-modal')
+const modalHighscore = document.getElementById('modal-highscore')
+const modalLeaderboardList = document.getElementById('modal-leaderboard-list')
 
 const GRID_SIZE = 4
 const isMobile = window.innerWidth <= 800
@@ -32,6 +37,12 @@ let timerInterval = null
 
 let highScore = parseInt(localStorage.getItem('highscore')) || 0
 highscoreValueEl.textContent = highScore
+
+if (isMobile) {
+  startBtn.style.display = 'block'
+  statsBtn.style.display = 'block'
+  messageEl.style.display = 'none'
+}
 
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)()
 const notes = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00]
@@ -94,6 +105,7 @@ function initGame() {
   messageEl.textContent = ''
   nameEntry.style.display = 'none'
   restartBtn.style.display = 'none'
+  startBtn.style.display = 'none'
   submitBtn.style.display = 'none'
   const indices = shuffle([...Array(16).keys()])
   blackIndices = new Set(indices.slice(0, 3))
@@ -169,17 +181,18 @@ async function endGame() {
     localStorage.setItem('highscore', highScore)
     highscoreValueEl.textContent = highScore
     messageEl.textContent = 'New best!'
+    messageEl.style.display = 'block'
   } else {
     messageEl.textContent = ''
   }
 
-  // show restart button for mobile
-  if (isMobile) restartBtn.style.display = 'block'
+  if (isMobile) {
+    startBtn.style.display = 'block'
+  }
 
   const qualifies = await checkQualifies(score)
   if (qualifies && score > 0) {
     nameEntry.style.display = 'flex'
-    // show submit button on mobile instead of hint
     if (isMobile) {
       submitBtn.style.display = 'block'
       document.getElementById('name-hint').style.display = 'none'
@@ -237,7 +250,6 @@ nameInput.addEventListener('keydown', async (e) => {
   if (e.key === 'Enter' && nameInput.value.trim()) {
     await submitScore(nameInput.value.trim(), score)
     nameEntry.style.display = 'none'
-    restartBtn.style.display = isMobile ? 'block' : 'none'
     if (!isMobile) messageEl.textContent = 'Press any key to restart'
     renderLeaderboard()
   }
@@ -247,15 +259,42 @@ submitBtn.addEventListener('click', async () => {
   if (nameInput.value.trim()) {
     await submitScore(nameInput.value.trim(), score)
     nameEntry.style.display = 'none'
-    restartBtn.style.display = 'block'
     renderLeaderboard()
   }
 })
 
+startBtn.addEventListener('click', () => {
+  startBtn.style.display = 'none'
+  messageEl.style.display = 'none'
+  initGame()
+})
+
 restartBtn.addEventListener('click', () => initGame())
+
+statsBtn.addEventListener('click', async () => {
+  modalHighscore.textContent = highScore
+  const data = await fetchLeaderboard()
+  modalLeaderboardList.innerHTML = ''
+  data.forEach((entry, i) => {
+    const li = document.createElement('li')
+    if (i < 3) li.classList.add('top')
+    li.innerHTML = `
+      <span class="lb-rank">${i + 1}.</span>
+      <span class="lb-name">${entry.name}</span>
+      <span class="lb-score">${entry.score}</span>
+    `
+    modalLeaderboardList.appendChild(li)
+  })
+  statsModal.style.display = 'flex'
+})
+
+document.getElementById('close-modal').addEventListener('click', () => {
+  statsModal.style.display = 'none'
+})
 
 document.addEventListener('keydown', (e) => {
   if (nameEntry.style.display === 'flex') return
+  if (statsModal.style.display === 'flex') return
   if (!isMobile) initGame()
 })
 
