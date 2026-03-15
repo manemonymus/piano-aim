@@ -6,8 +6,16 @@ const messageEl = document.getElementById('message')
 const highscoreValueEl = document.getElementById('highscore-value')
 
 const GRID_SIZE = 4
-const TILE_SIZE = 120
+
 const BORDER = 2
+const API_URL = 'http://127.0.0.1:8000'
+
+const nameEntry = document.getElementById('name-entry')
+const nameInput = document.getElementById('name-input')
+
+const leaderboardList = document.getElementById('leaderboard-list')
+
+const TILE_SIZE = 120
 
 canvas.width = GRID_SIZE * TILE_SIZE
 canvas.height = GRID_SIZE * TILE_SIZE
@@ -100,10 +108,10 @@ function startTimer() {
     }
   }, 100)
 }
-
-function endGame() {
+async function endGame() {
   gameActive = false
   clearInterval(timerInterval)
+
   if (score > highScore) {
     highScore = score
     localStorage.setItem('highscore', highScore)
@@ -112,7 +120,59 @@ function endGame() {
   } else {
     messageEl.textContent = 'Press any key to restart'
   }
+
+  const qualifies = await checkQualifies(score)
+  if (qualifies && score > 0) {
+    nameEntry.style.display = 'flex'
+    nameInput.value = ''
+    nameInput.focus()
+  }
 }
+
+nameInput.addEventListener('keydown', async (e) => {
+  if (e.key === 'Enter' && nameInput.value.trim()) {
+    await submitScore(nameInput.value.trim(), score)
+    nameEntry.style.display = 'none'
+    renderLeaderboard()
+  }
+})
+
+async function submitScore(name, score) {
+  await fetch(`${API_URL}/score`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, score })
+  })
+}
+async function checkQualifies(score) {
+  const data = await fetchLeaderboard()
+  if (data.length < 10) return true
+  return score > data[data.length - 1].score
+}
+
+async function fetchLeaderboard() {
+  const res = await fetch(`${API_URL}/leaderboard`)
+  const data = await res.json()
+  return data
+}
+async function renderLeaderboard() {
+  const data = await fetchLeaderboard()
+  leaderboardList.innerHTML = ''
+  data.forEach((entry, i) => {
+    const li = document.createElement('li')
+    if (i < 3) li.classList.add('top')
+    li.innerHTML = `
+      <span class="lb-rank">${i + 1}.</span>
+      <span class="lb-name">${entry.name}</span>
+      <span class="lb-score">${entry.score}</span>
+    `
+    leaderboardList.appendChild(li)
+  })
+}
+
+// call on load
+renderLeaderboard()
+
 
 canvas.addEventListener('mousedown', (e) => {
   if (!gameActive) return
@@ -145,8 +205,8 @@ canvas.addEventListener('mousedown', (e) => {
   }
 })
 
-document.addEventListener('keydown', () => {
+document.addEventListener('keydown', (e) => {
+  if (nameEntry.style.display === 'flex') return
   initGame()
 })
-
 drawGrid()

@@ -7,19 +7,29 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="app">
-    <div id="hud">
-      <span id="score">0</span>
-      <span id="timer">30.0</span>
+  <div id="layout">
+    <div id="leaderboard">
+      <h2 class="leaderboard-title">Global</h2>
+      <ol id="leaderboard-list"></ol>
     </div>
-    <div id="game-wrapper">
-      <canvas id="canvas"></canvas>
-      <div id="highscore">
-        <span class="label">Highscore</span>
-        <span class="value" id="highscore-value">0</span>
+    <div id="app">
+      <div id="hud">
+        <span id="score">0</span>
+        <span id="timer">30.0</span>
       </div>
-    </div>
-    <p id="message">Press any key to start</p>
+      <div id="game-wrapper">
+        <canvas id="canvas"></canvas>
+        <div id="highscore">
+          <span class="label">Highscore</span>
+          <span class="value" id="highscore-value">0</span>
+        </div>
+      </div>
+      <p id="message">Press any key to start</p>
+      <div id="name-entry" style="display:none">
+        <input id="name-input" type="text" placeholder="Enter your name..." maxlength="20" />
+        <p id="name-hint">Press Enter to submit</p>
+      </div>
+      
   </div>
   <script src="script.js"></script>
 </body>
