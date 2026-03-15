@@ -11,9 +11,14 @@ const highscoreValueEl = document.getElementById('highscore-value')
 const nameEntry = document.getElementById('name-entry')
 const nameInput = document.getElementById('name-input')
 const leaderboardList = document.getElementById('leaderboard-list')
+const restartBtn = document.getElementById('restart-btn')
+const submitBtn = document.getElementById('submit-btn')
 
 const GRID_SIZE = 4
-const TILE_SIZE = 120
+const isMobile = window.innerWidth <= 800
+const TILE_SIZE = isMobile
+  ? Math.floor(Math.min(window.innerWidth, window.innerHeight) * 0.22)
+  : 120
 const BORDER = 2
 
 canvas.width = GRID_SIZE * TILE_SIZE
@@ -88,6 +93,8 @@ function initGame() {
   timerEl.style.color = '#f0a500'
   messageEl.textContent = ''
   nameEntry.style.display = 'none'
+  restartBtn.style.display = 'none'
+  submitBtn.style.display = 'none'
   const indices = shuffle([...Array(16).keys()])
   blackIndices = new Set(indices.slice(0, 3))
   drawGrid()
@@ -125,15 +132,10 @@ async function submitScore(name, score) {
 
   if (existing) {
     if (score > existing.score) {
-      await supabase
-        .from('scores')
-        .update({ score })
-        .eq('name', name)
+      await supabase.from('scores').update({ score }).eq('name', name)
     }
   } else {
-    await supabase
-      .from('scores')
-      .insert({ name, score })
+    await supabase.from('scores').insert({ name, score })
   }
 }
 
@@ -166,35 +168,28 @@ async function endGame() {
     highScore = score
     localStorage.setItem('highscore', highScore)
     highscoreValueEl.textContent = highScore
-    messageEl.textContent = 'New best! Press any key to restart'
+    messageEl.textContent = 'New best!'
   } else {
-    messageEl.textContent = 'Press any key to restart'
+    messageEl.textContent = ''
   }
+
+  // show restart button for mobile
+  if (isMobile) restartBtn.style.display = 'block'
 
   const qualifies = await checkQualifies(score)
   if (qualifies && score > 0) {
     nameEntry.style.display = 'flex'
-    nameInput.value = ''
+    // show submit button on mobile instead of hint
+    if (isMobile) {
+      submitBtn.style.display = 'block'
+      document.getElementById('name-hint').style.display = 'none'
+    }
     nameInput.focus()
   }
 }
 
-nameInput.addEventListener('keydown', async (e) => {
-  if (e.key === 'Enter' && nameInput.value.trim()) {
-    await submitScore(nameInput.value.trim(), score)
-    nameEntry.style.display = 'none'
-    renderLeaderboard()
-  }
-})
-
-canvas.addEventListener('mousedown', (e) => {
+function handleClick(index) {
   if (!gameActive) return
-  const rect = canvas.getBoundingClientRect()
-  const x = e.clientX - rect.left
-  const y = e.clientY - rect.top
-  const col = Math.floor(x / TILE_SIZE)
-  const row = Math.floor(y / TILE_SIZE)
-  const index = row * GRID_SIZE + col
 
   if (blackIndices.has(index)) {
     blackIndices.delete(index)
@@ -216,11 +211,52 @@ canvas.addEventListener('mousedown', (e) => {
     playErrorSound()
     endGame()
   }
+}
+
+canvas.addEventListener('mousedown', (e) => {
+  const rect = canvas.getBoundingClientRect()
+  const x = e.clientX - rect.left
+  const y = e.clientY - rect.top
+  const col = Math.floor(x / TILE_SIZE)
+  const row = Math.floor(y / TILE_SIZE)
+  handleClick(row * GRID_SIZE + col)
 })
+
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault()
+  const touch = e.touches[0]
+  const rect = canvas.getBoundingClientRect()
+  const x = touch.clientX - rect.left
+  const y = touch.clientY - rect.top
+  const col = Math.floor(x / TILE_SIZE)
+  const row = Math.floor(y / TILE_SIZE)
+  handleClick(row * GRID_SIZE + col)
+}, { passive: false })
+
+nameInput.addEventListener('keydown', async (e) => {
+  if (e.key === 'Enter' && nameInput.value.trim()) {
+    await submitScore(nameInput.value.trim(), score)
+    nameEntry.style.display = 'none'
+    restartBtn.style.display = isMobile ? 'block' : 'none'
+    if (!isMobile) messageEl.textContent = 'Press any key to restart'
+    renderLeaderboard()
+  }
+})
+
+submitBtn.addEventListener('click', async () => {
+  if (nameInput.value.trim()) {
+    await submitScore(nameInput.value.trim(), score)
+    nameEntry.style.display = 'none'
+    restartBtn.style.display = 'block'
+    renderLeaderboard()
+  }
+})
+
+restartBtn.addEventListener('click', () => initGame())
 
 document.addEventListener('keydown', (e) => {
   if (nameEntry.style.display === 'flex') return
-  initGame()
+  if (!isMobile) initGame()
 })
 
 drawGrid()
