@@ -1,6 +1,6 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
-const supabase = createClient('YOUR_SUPABASE_URL', 'YOUR_ANON_KEY')
+const supabase = createClient('https://issagyqenkachzhqdilr.supabase.co', 'sb_publishable_734iJucANV1NrJLwRzAz8w_vErwSAOY')
 
 const canvas = document.getElementById('canvas')
 const ctx = canvas.getContext('2d')
