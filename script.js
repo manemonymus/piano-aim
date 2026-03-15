@@ -1,21 +1,20 @@
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+
+const supabase = createClient('https://issagyqenkachzhqdilr.supabase.co', 'sb_publishable_734iJucANV1NrJLwRzAz8w_vErwSAOY')
+
 const canvas = document.getElementById('canvas')
 const ctx = canvas.getContext('2d')
 const scoreEl = document.getElementById('score')
 const timerEl = document.getElementById('timer')
 const messageEl = document.getElementById('message')
 const highscoreValueEl = document.getElementById('highscore-value')
-
-const GRID_SIZE = 4
-
-const BORDER = 2
-const API_URL = 'http://127.0.0.1:8000'
-
 const nameEntry = document.getElementById('name-entry')
 const nameInput = document.getElementById('name-input')
-
 const leaderboardList = document.getElementById('leaderboard-list')
 
+const GRID_SIZE = 4
 const TILE_SIZE = 120
+const BORDER = 2
 
 canvas.width = GRID_SIZE * TILE_SIZE
 canvas.height = GRID_SIZE * TILE_SIZE
@@ -30,8 +29,6 @@ let highScore = parseInt(localStorage.getItem('highscore')) || 0
 highscoreValueEl.textContent = highScore
 
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)()
-
-// pentatonic scale
 const notes = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00]
 
 function playPianoNote() {
@@ -90,6 +87,7 @@ function initGame() {
   timerEl.textContent = '30.0'
   timerEl.style.color = '#f0a500'
   messageEl.textContent = ''
+  nameEntry.style.display = 'none'
   const indices = shuffle([...Array(16).keys()])
   blackIndices = new Set(indices.slice(0, 3))
   drawGrid()
@@ -108,6 +106,58 @@ function startTimer() {
     }
   }, 100)
 }
+
+async function fetchLeaderboard() {
+  const { data } = await supabase
+    .from('scores')
+    .select('name, score')
+    .order('score', { ascending: false })
+    .limit(10)
+  return data || []
+}
+
+async function submitScore(name, score) {
+  const { data: existing } = await supabase
+    .from('scores')
+    .select('score')
+    .eq('name', name)
+    .single()
+
+  if (existing) {
+    if (score > existing.score) {
+      await supabase
+        .from('scores')
+        .update({ score })
+        .eq('name', name)
+    }
+  } else {
+    await supabase
+      .from('scores')
+      .insert({ name, score })
+  }
+}
+
+async function checkQualifies(score) {
+  const data = await fetchLeaderboard()
+  if (data.length < 10) return true
+  return score > data[data.length - 1].score
+}
+
+async function renderLeaderboard() {
+  const data = await fetchLeaderboard()
+  leaderboardList.innerHTML = ''
+  data.forEach((entry, i) => {
+    const li = document.createElement('li')
+    if (i < 3) li.classList.add('top')
+    li.innerHTML = `
+      <span class="lb-rank">${i + 1}.</span>
+      <span class="lb-name">${entry.name}</span>
+      <span class="lb-score">${entry.score}</span>
+    `
+    leaderboardList.appendChild(li)
+  })
+}
+
 async function endGame() {
   gameActive = false
   clearInterval(timerInterval)
@@ -137,43 +187,6 @@ nameInput.addEventListener('keydown', async (e) => {
   }
 })
 
-async function submitScore(name, score) {
-  await fetch(`${API_URL}/score`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, score })
-  })
-}
-async function checkQualifies(score) {
-  const data = await fetchLeaderboard()
-  if (data.length < 10) return true
-  return score > data[data.length - 1].score
-}
-
-async function fetchLeaderboard() {
-  const res = await fetch(`${API_URL}/leaderboard`)
-  const data = await res.json()
-  return data
-}
-async function renderLeaderboard() {
-  const data = await fetchLeaderboard()
-  leaderboardList.innerHTML = ''
-  data.forEach((entry, i) => {
-    const li = document.createElement('li')
-    if (i < 3) li.classList.add('top')
-    li.innerHTML = `
-      <span class="lb-rank">${i + 1}.</span>
-      <span class="lb-name">${entry.name}</span>
-      <span class="lb-score">${entry.score}</span>
-    `
-    leaderboardList.appendChild(li)
-  })
-}
-
-// call on load
-renderLeaderboard()
-
-
 canvas.addEventListener('mousedown', (e) => {
   if (!gameActive) return
   const rect = canvas.getBoundingClientRect()
@@ -193,7 +206,7 @@ canvas.addEventListener('mousedown', (e) => {
     blackIndices.add(newBlack)
     score++
     scoreEl.textContent = score
-    playPianoNote(score)
+    playPianoNote()
     drawGrid()
   } else {
     const col = index % GRID_SIZE
@@ -209,4 +222,6 @@ document.addEventListener('keydown', (e) => {
   if (nameEntry.style.display === 'flex') return
   initGame()
 })
+
 drawGrid()
+renderLeaderboard()
