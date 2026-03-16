@@ -180,10 +180,11 @@ async function endGame() {
     highScore = score
     localStorage.setItem('highscore', highScore)
     highscoreValueEl.textContent = highScore
-    messageEl.textContent = 'New best!'
+    messageEl.textContent = 'New best! Press any key to restart!'
     messageEl.style.display = 'block'
   } else {
-    messageEl.textContent = ''
+    messageEl.textContent = 'Press any key to restart'
+    messageEl.style.display = 'block'
   }
 
   if (isMobile) {
