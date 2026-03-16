@@ -19,12 +19,12 @@ A fast-paced reflex game inspired by Piano Tiles. Click the black tiles before t
 
 ## Features
 
-- ⚡ Canvas-based rendering for zero-lag click detection
-- 🎵 Procedural piano sounds using the Web Audio API (pentatonic scale)
-- 🏆 Global leaderboard powered by Supabase — top 10 scores worldwide
-- 💾 Local high score saved in your browser
-- 🔒 One spot per player on the leaderboard — only your best score counts
-- 🤖 Only qualifies for leaderboard if score beats the current top 10
+-  Canvas-based rendering for zero-lag click detection
+-  Procedural piano sounds using the Web Audio API (pentatonic scale)
+-  Global leaderboard powered by Supabase — top 10 scores worldwide
+-  Local high score saved in your browser
+-  One spot per player on the leaderboard — only your best score counts
+-  Only qualifies for leaderboard if score beats the current top 10
 
 ---
 
