@@ -1,6 +1,6 @@
 # 🎹 Piano Aim
 
-A fast-paced reflex game inspired by Piano Tiles. Click the black tiles before the timer runs out — but don't miss.
+A fast-paced reflex game inspired by Piano Tiles. Click the black tiles before the timer runs out — but don't miss
 
 # 🔗 **[Play Now](https://pianoaim.com)**
 
