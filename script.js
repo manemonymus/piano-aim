@@ -35,6 +35,10 @@ let timeLeft = 30
 let gameActive = false
 let timerInterval = null
 
+// Multi-touch ghost tap prevention
+let recentTaps = {} // { index: timestamp }
+const SAME_TILE_COOLDOWN = 200
+
 let highScore = parseInt(localStorage.getItem('highscore')) || 0
 highscoreValueEl.textContent = highScore
 
@@ -107,6 +111,7 @@ function initGame() {
   restartBtn.style.display = 'none'
   startBtn.style.display = 'none'
   submitBtn.style.display = 'none'
+  recentTaps = {}
   const indices = shuffle([...Array(16).keys()])
   blackIndices = new Set(indices.slice(0, 3))
   drawGrid()
@@ -238,13 +243,29 @@ canvas.addEventListener('mousedown', (e) => {
 
 canvas.addEventListener('touchstart', (e) => {
   e.preventDefault()
-  const touch = e.touches[0]
   const rect = canvas.getBoundingClientRect()
-  const x = touch.clientX - rect.left
-  const y = touch.clientY - rect.top
-  const col = Math.floor(x / TILE_SIZE)
-  const row = Math.floor(y / TILE_SIZE)
-  handleClick(row * GRID_SIZE + col)
+  const now = Date.now()
+
+  // Clean up old entries from recentTaps
+  for (const idx in recentTaps) {
+    if (now - recentTaps[idx] > SAME_TILE_COOLDOWN) {
+      delete recentTaps[idx]
+    }
+  }
+
+  Array.from(e.touches).forEach(touch => {
+    const x = touch.clientX - rect.left
+    const y = touch.clientY - rect.top
+    const col = Math.floor(x / TILE_SIZE)
+    const row = Math.floor(y / TILE_SIZE)
+    const index = row * GRID_SIZE + col
+
+    // Skip if this tile was just tapped (ghost tap prevention)
+    if (recentTaps[index] && now - recentTaps[index] < SAME_TILE_COOLDOWN) return
+
+    recentTaps[index] = now
+    handleClick(index)
+  })
 }, { passive: false })
 
 nameInput.addEventListener('keydown', async (e) => {
