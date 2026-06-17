@@ -1,6 +1,39 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
-const supabase = createClient('https://issagyqenkachzhqdilr.supabase.co', 'sb_publishable_734iJucANV1NrJLwRzAz8w_vErwSAOY')
+const SUPABASE_URL = 'https://issagyqenkachzhqdilr.supabase.co'
+const SUPABASE_ANON_KEY = 'sb_publishable_734iJucANV1NrJLwRzAz8w_vErwSAOY'
+const FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1`
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+// Token for the current game session, issued by the start-game Edge Function.
+// Required by submit-score to prove a score came from a real play session.
+let gameToken = null
+
+async function callFunction(name, body) {
+  const res = await fetch(`${FUNCTIONS_URL}/${name}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(`${name} failed: ${res.status}`)
+  return res.json().catch(() => ({}))
+}
+
+async function requestGameToken() {
+  gameToken = null
+  try {
+    const { token } = await callFunction('start-game', {})
+    gameToken = token
+  } catch (e) {
+    // Non-fatal: the game still plays, but this score won't be submittable.
+    console.error('Could not start a scored session', e)
+  }
+}
 
 const canvas = document.getElementById('canvas')
 const ctx = canvas.getContext('2d')
@@ -111,6 +144,7 @@ function initGame() {
   blackIndices = new Set(indices.slice(0, 3))
   drawGrid()
   clearInterval(timerInterval)
+  requestGameToken()
   startTimer()
 }
 
@@ -136,18 +170,13 @@ async function fetchLeaderboard() {
 }
 
 async function submitScore(name, score) {
-  const { data: existing } = await supabase
-    .from('scores')
-    .select('score')
-    .eq('name', name)
-    .single()
-
-  if (existing) {
-    if (score > existing.score) {
-      await supabase.from('scores').update({ score }).eq('name', name)
-    }
-  } else {
-    await supabase.from('scores').insert({ name, score })
+  // Writes go through the submit-score Edge Function, which validates the
+  // session token and uses the service_role key. The anon key can no longer
+  // write to the scores table directly (enforced by RLS).
+  try {
+    await callFunction('submit-score', { name, score, token: gameToken })
+  } catch (e) {
+    console.error('Score submission failed', e)
   }
 }
 
@@ -163,11 +192,20 @@ async function renderLeaderboard() {
   data.forEach((entry, i) => {
     const li = document.createElement('li')
     if (i < 3) li.classList.add('top')
-    li.innerHTML = `
-      <span class="lb-rank">${i + 1}.</span>
-      <span class="lb-name">${entry.name}</span>
-      <span class="lb-score">${entry.score}</span>
-    `
+
+    const rank = document.createElement('span')
+    rank.className = 'lb-rank'
+    rank.textContent = `${i + 1}.`
+
+    const name = document.createElement('span')
+    name.className = 'lb-name'
+    name.textContent = entry.name
+
+    const score = document.createElement('span')
+    score.className = 'lb-score'
+    score.textContent = entry.score
+
+    li.append(rank, name, score)
     leaderboardList.appendChild(li)
   })
 }
@@ -279,11 +317,20 @@ statsBtn.addEventListener('click', async () => {
   data.forEach((entry, i) => {
     const li = document.createElement('li')
     if (i < 3) li.classList.add('top')
-    li.innerHTML = `
-      <span class="lb-rank">${i + 1}.</span>
-      <span class="lb-name">${entry.name}</span>
-      <span class="lb-score">${entry.score}</span>
-    `
+
+    const rank = document.createElement('span')
+    rank.className = 'lb-rank'
+    rank.textContent = `${i + 1}.`
+
+    const name = document.createElement('span')
+    name.className = 'lb-name'
+    name.textContent = entry.name
+
+    const score = document.createElement('span')
+    score.className = 'lb-score'
+    score.textContent = entry.score
+
+    li.append(rank, name, score)
     modalLeaderboardList.appendChild(li)
   })
   statsModal.style.display = 'flex'
@@ -294,6 +341,7 @@ document.getElementById('close-modal').addEventListener('click', () => {
 })
 
 document.addEventListener('keydown', (e) => {
+  if (e.repeat) return // ignore OS key-repeat from a held-down key
   if (nameEntry.style.display === 'flex') return
   if (statsModal.style.display === 'flex') return
   if (!isMobile) initGame()

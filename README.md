@@ -59,7 +59,7 @@ The game loop runs entirely on a single HTML5 Canvas element. Click detection us
 
 Audio is generated procedurally using the Web Audio API — no audio files needed. Each correct click plays a random note from a pentatonic scale, making rapid clicking sound musical rather than chaotic.
 
-Scores are submitted directly to Supabase from the frontend using the Supabase JS client. Row Level Security policies ensure users can only insert and update their own scores.
+The leaderboard is read directly from Supabase using the public anon key, but **writes are not** — Row Level Security blocks the anon key from inserting or updating scores. Submissions go through the `submit-score` Edge Function, which verifies a signed session token (issued by `start-game` when a game begins), enforces a plausible score range, and writes using the server-only `service_role` key.
 
 ---
 
